@@ -1,0 +1,39 @@
+{
+  "name": "@church/backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch --env-file=.env --import tsx src/local.ts",
+    "build": "tsc --noEmit && node build.mjs",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "migrate": "node --env-file=.env --import tsx src/migrate.ts",
+    "seed": "node --env-file=.env --import tsx src/seed.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.750.0",
+    "@electric-sql/pglite": "^0.5.8",
+    "aws-jwt-verify": "^5.0.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jose": "^6.0.0",
+    "pg": "^8.13.3",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.13.0",
+    "@types/pg": "^8.11.11",
+    "esbuild": "^0.25.0",
+    "jsdom": "^30.1.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.7"
+  }
+}
