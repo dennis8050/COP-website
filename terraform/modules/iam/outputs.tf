@@ -1,0 +1,16 @@
+output "lambda_role_arn" {
+  value = aws_iam_role.lambda.arn
+}
+
+output "github_role_arn" {
+  value = aws_iam_role.github.arn
+}
+
+output "terraform_role_arn" {
+  value = aws_iam_role.terraform.arn
+}
+
+
+output "followup_role_arn" {
+  value = aws_iam_role.followup.arn
+}

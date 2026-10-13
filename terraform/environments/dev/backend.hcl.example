@@ -1,0 +1,6 @@
+
+bucket       = "church-management-tfstate-8050-2026-us-east-1"
+key          = "church-management/dev/terraform.tfstate"
+region       = "us-east-1"
+encrypt      = true
+use_lockfile = true

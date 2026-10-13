@@ -1,0 +1,9 @@
+environment = "dev"
+aws_region = "ca-central-1"
+project_name = "church-management"
+github_repository = "YOUR_ORG/YOUR_REPOSITORY"
+alarm_email = "YOUR_EMAIL"
+instance_size = "db.t4g.micro"
+# Reuse account provider ARN for subsequent environments.
+github_oidc_provider_arn = ""
+state_bucket_name = "YOUR_BOOTSTRAP_STATE_BUCKET"

@@ -1,0 +1,9 @@
+environment = "production"
+aws_region = "us-east-1"
+project_name = "church-management"
+github_repository = "Dennis8050/COP-website"
+alarm_email = "isaacdennis940@gmail.com"
+instance_size = "db.t4g.small"
+# Reuse account provider ARN for subsequent environments.
+github_oidc_provider_arn = ""
+state_bucket_name = "church-management-tfstate-8050-prod-2026"

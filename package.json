@@ -1,0 +1,21 @@
+{
+  "name": "church-management",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "db:migrate": "npm run migrate -w backend",
+    "db:seed": "npm run seed -w backend",
+    "setup:local": "node scripts/setup-local.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prettier": "^3.9.9"
+  }
+}

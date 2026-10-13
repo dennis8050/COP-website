@@ -1,0 +1,97 @@
+name: Deploy
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [dev, staging, production]
+        default: dev
+      apply_infrastructure:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run lint && npm test && npm run build
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.13.5 }
+      - run: terraform -chdir=terraform fmt -check -recursive && terraform -chdir=terraform init -backend=false && terraform -chdir=terraform validate
+  deploy:
+    needs: checks
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Build production application
+        env:
+          VITE_AUTH_MODE: cognito
+          VITE_API_URL: ${{ vars.API_URL }}
+          VITE_COGNITO_USER_POOL_ID: ${{ vars.COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ vars.COGNITO_CLIENT_ID }}
+        run: npm run build
+      - uses: hashicorp/setup-terraform@v3
+        if: inputs.apply_infrastructure
+        with: { terraform_version: 1.13.5 }
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: inputs.apply_infrastructure
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Apply infrastructure
+        if: inputs.apply_infrastructure
+        env:
+          STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          REGION: ${{ vars.AWS_REGION }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          TF_VAR_state_bucket_name: ${{ vars.TF_STATE_BUCKET }}
+          TF_VAR_environment: ${{ inputs.environment }}
+          TF_VAR_github_repository: ${{ github.repository }}
+          TF_VAR_alarm_email: ${{ vars.ALARM_EMAIL }}
+          TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+          TF_VAR_github_oidc_provider_arn: ${{ vars.GITHUB_OIDC_PROVIDER_ARN }}
+        run: |
+          terraform -chdir=terraform init -backend-config="bucket=$STATE_BUCKET" -backend-config="key=church-management/$ENVIRONMENT/terraform.tfstate" -backend-config="region=$REGION" -backend-config="encrypt=true" -backend-config="use_lockfile=true"
+          terraform -chdir=terraform plan -out=deployment.tfplan
+          terraform -chdir=terraform apply deployment.tfplan
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Deploy Lambda and migrate
+        env:
+          API_FUNCTION: ${{ vars.API_FUNCTION }}
+          MIGRATION_FUNCTION: ${{ vars.MIGRATION_FUNCTION }}
+          PROVISION_FUNCTION: ${{ vars.PROVISION_FUNCTION }}
+          FOLLOWUP_FUNCTION: ${{ vars.FOLLOWUP_FUNCTION }}
+        run: |
+          cd backend/dist
+          zip -r /tmp/backend.zip .
+          for FUNCTION in "$API_FUNCTION" "$MIGRATION_FUNCTION" "$PROVISION_FUNCTION" "$FOLLOWUP_FUNCTION"; do
+            if [ -z "$FUNCTION" ]; then continue; fi
+            aws lambda update-function-code --function-name "$FUNCTION" --zip-file fileb:///tmp/backend.zip
+            aws lambda wait function-updated --function-name "$FUNCTION"
+          done
+          aws lambda invoke --function-name "$MIGRATION_FUNCTION" /tmp/migration.json > /tmp/invoke.json
+          node -e "const fs=require('fs');const meta=JSON.parse(fs.readFileSync('/tmp/invoke.json'));const data=JSON.parse(fs.readFileSync('/tmp/migration.json'));if(meta.FunctionError||!data.success)process.exit(1)"
+      - name: Deploy frontend
+        env:
+          BUCKET: ${{ vars.FRONTEND_BUCKET }}
+          DISTRIBUTION: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          aws s3 sync frontend/dist "s3://$BUCKET" --delete --exclude index.html --cache-control 'public,max-age=31536000,immutable'
+          aws s3 cp frontend/dist/index.html "s3://$BUCKET/index.html" --cache-control 'no-cache'
+          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" --paths '/*'
